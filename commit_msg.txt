@@ -1,0 +1,21 @@
+feat: implement batch operations across contracts for gas optimization
+
+Implemented batch operations across 5 core contracts and updated the shared library to reduce transaction costs and improve efficiency.
+
+### Shared Library Updates
+- Added `BatchResult` type to track total, successful, and failed operations.
+- Set `MAX_BATCH_SIZE` to 20 to safeguard against resource limits.
+- Introduced `BatchLimitExceeded` and `BatchEmpty` error variants.
+- Defined `BATCH_COMPLETED` and `BATCH_ITEM_FAILED` event symbols.
+
+### Contract Enhancements
+- Escrow: Added `batch_create_milestones` and `batch_vote_milestones`.
+- Governance: Added `batch_vote`.
+- Reputation: Added `batch_update_scores` and `batch_award_badges`.
+- Project Launch: Added `batch_contribute`.
+- Profit Distribution: Added `batch_claim_dividends`.
+
+### Implementation Strategy
+- Partial Failure Handling: Batches skip invalid items and return a summary result instead of reverting the whole transaction.
+- Gas Optimization: Performs `require_auth()` once per batch, significantly reducing auth overhead.
+- Robustness: Each item is individually validated to maintain contract integrity.

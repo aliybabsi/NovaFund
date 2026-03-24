@@ -11,6 +11,7 @@ import { SocialStats } from "@/components/social/SocialStats";
 import { UserProfileCard } from "@/components/social/UserProfileCard";
 import { BackerAvatars } from "@/components/social/BackerAvatars";
 import { CommentSection } from "@/components/social/CommentSection";
+import { AuditBadge } from "@/components/AuditBadge";
 
 type ContributionState = "idle" | "loading" | "success" | "error";
 
@@ -210,6 +211,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                 {completedCount}/{milestones.length} milestones released
               </span>
+              <AuditBadge projectId={params.id} />
               <div className="flex items-center gap-2 normal-case tracking-normal">
                 <LikeButton projectId={params.id} />
                 <ShareButton
