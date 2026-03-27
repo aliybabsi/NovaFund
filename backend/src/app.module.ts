@@ -16,6 +16,7 @@ import { RelayModule } from './relay/relay.module';
 import { VerificationModule } from './verification/verification.module';
 import { RedisModule } from './redis/redis.module';
 import { ProjectModule } from './project/project.module';
+import { StellarModule } from './stellar/stellar.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ProjectModule } from './project/project.module';
       validate: validateEnv,
     }),
     RedisModule,
+    StellarModule,
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: true,

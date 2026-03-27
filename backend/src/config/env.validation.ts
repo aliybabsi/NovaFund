@@ -63,6 +63,24 @@ class EnvironmentVariables {
   STELLAR_RPC_URL: string;
 
   @IsString()
+  STELLAR_BACKUP_RPC_URLS: string;
+
+  @IsNumber()
+  RPC_CIRCUIT_BREAKER_FAILURE_THRESHOLD: number;
+
+  @IsNumber()
+  RPC_CIRCUIT_BREAKER_RECOVERY_TIMEOUT: number;
+
+  @IsNumber()
+  RPC_CIRCUIT_BREAKER_MONITORING_PERIOD: number;
+
+  @IsNumber()
+  RPC_HEALTH_CHECK_INTERVAL: number;
+
+  @IsNumber()
+  RPC_REQUEST_TIMEOUT: number;
+
+  @IsString()
   STELLAR_HORIZON_URL: string;
 
   @IsString()
