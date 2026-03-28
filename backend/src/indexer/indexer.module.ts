@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { IndexerService } from './services/indexer.service';
 import { LedgerTrackerService } from './services/ledger-tracker.service';
 import { EventHandlerService } from './services/event-handler.service';
+import { DlqService } from './services/dlq.service';
 import { DatabaseModule } from '../database.module';
 import { StellarModule } from '../stellar/stellar.module';
 import stellarConfig, { indexerConfig } from '../config/stellar.config';
@@ -33,12 +34,15 @@ import stellarConfig, { indexerConfig } from '../config/stellar.config';
     LedgerTrackerService,
     // Event processing
     EventHandlerService,
+    // Dead Letter Queue
+    DlqService,
   ],
   exports: [
     // Export services for potential external use
     IndexerService,
     LedgerTrackerService,
     EventHandlerService,
+    DlqService,
   ],
 })
 export class IndexerModule {}
