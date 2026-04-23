@@ -6,6 +6,13 @@ pub type Timestamp = u64;
 /// Common amount type
 pub type Amount = i128;
 
+/// Common KYC tier representation.
+///
+/// * `0` = unverified or no KYC data
+/// * `1` = KYC Tier 1
+/// * `2` = KYC Tier 2
+pub type KycTier = u32;
+
 /// Common percentage type (in basis points, 10000 = 100%)
 pub type BasisPoints = u32;
 

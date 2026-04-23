@@ -1,6 +1,7 @@
 #![no_std]
 
 mod rwa_metadata;
+mod asset_whitelist;
 
 use soroban_sdk::{
     contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env, String,
@@ -13,11 +14,11 @@ use shared::{
     },
     errors::Error,
     events::{
-        CONTRACT_PAUSED, CONTRACT_RESUMED, CONTRIBUTION_MADE, PROJECT_CREATED, PROJECT_FAILED,
-        REFUND_ISSUED, RWA_METADATA_UPDATED, UPGRADE_CANCELLED, UPGRADE_EXECUTED,
-        UPGRADE_SCHEDULED,
+        ASSET_WHITELIST_REMOVED, ASSET_WHITELIST_SET, CONTRACT_PAUSED, CONTRACT_RESUMED,
+        CONTRIBUTION_MADE, PROJECT_CREATED, PROJECT_FAILED, REFUND_ISSUED, RWA_METADATA_UPDATED,
+        UPGRADE_CANCELLED, UPGRADE_EXECUTED, UPGRADE_SCHEDULED,
     },
-    types::{Jurisdiction, PauseState, PendingUpgrade},
+    types::{Jurisdiction, KycTier, PauseState, PendingUpgrade},
     utils::verify_future_timestamp,
 };
 use soroban_sdk::BytesN;
@@ -76,8 +77,9 @@ pub enum DataKey {
     ProjectFailureProcessed = 5, // (DataKey::ProjectFailureProcessed, project_id) -> bool
     IdentityContract = 6,   // Address of the Identity Verification contract
     ProjectJurisdictions = 7, // (DataKey::ProjectJurisdictions, project_id) -> Vec<Jurisdiction>
-    PauseState = 8,
-    PendingUpgrade = 9,
+    AssetWhitelist = 8, // (DataKey::AssetWhitelist, asset) -> KycTier
+    PauseState = 9,
+    PendingUpgrade = 10,
     RwaMetadataCid = 10, // (DataKey::RwaMetadataCid, project_id) -> String
     GovernanceContract = 11, // Address of the Governance DAO contract for upgrade approval
 }
@@ -134,6 +136,26 @@ impl ProjectLaunch {
             .set(&DataKey::GovernanceContract, &governance_contract);
 
         Ok(())
+    }
+
+    /// Register or update an asset whitelist entry with the required KYC tier.
+    pub fn set_asset_whitelist_tier(
+        env: Env,
+        admin: Address,
+        asset: Address,
+        required_tier: KycTier,
+    ) -> Result<(), Error> {
+        asset_whitelist::AssetWhitelist::set(env, admin, asset, required_tier)
+    }
+
+    /// Remove an asset from the protected asset whitelist.
+    pub fn remove_asset_from_whitelist(env: Env, admin: Address, asset: Address) -> Result<(), Error> {
+        asset_whitelist::AssetWhitelist::remove(env, admin, asset)
+    }
+
+    /// Get the required KYC tier for an asset if it is protected.
+    pub fn get_asset_whitelist_tier(env: Env, asset: Address) -> Option<KycTier> {
+        asset_whitelist::AssetWhitelist::get_required_tier(&env, &asset)
     }
 
     /// Get the Governance DAO contract address
@@ -285,6 +307,8 @@ impl ProjectLaunch {
                 return Err(Error::Unauthorized);
             }
         }
+
+        asset_whitelist::AssetWhitelist::validate_asset_kyc(&env, &project.token, user_tier)?;
 
         // Update project totals
         project.total_raised += amount;
@@ -672,6 +696,7 @@ impl ProjectLaunch {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use identity::IdentityContractClient;
     use soroban_sdk::{
         testutils::{Address as TestAddress, Ledger},
         token, Address, Bytes, String,
@@ -831,6 +856,216 @@ mod tests {
         env.ledger().set_timestamp(deadline + 1);
         let result = client.try_contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_admin_can_set_update_and_remove_asset_whitelist_entries() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = Address::generate(&env);
+
+        client.initialize(&admin);
+
+        client.set_asset_whitelist_tier(&admin, &asset, &1u32);
+        assert_eq!(client.get_asset_whitelist_tier(&asset), Some(1u32));
+
+        client.set_asset_whitelist_tier(&admin, &asset, &2u32);
+        assert_eq!(client.get_asset_whitelist_tier(&asset), Some(2u32));
+
+        client.remove_asset_from_whitelist(&admin, &asset);
+        assert_eq!(client.get_asset_whitelist_tier(&asset), None);
+    }
+
+    #[test]
+    fn test_non_admin_cannot_modify_asset_whitelist() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let non_admin = Address::generate(&env);
+        let asset = Address::generate(&env);
+
+        client.initialize(&admin);
+
+        let result = client.try_set_asset_whitelist_tier(&non_admin, &asset, &1u32);
+        assert!(result.is_err() || matches!(result, Ok(Err(Error::Unauthorized))));
+        assert_eq!(client.get_asset_whitelist_tier(&asset), None);
+
+        let result = client.try_remove_asset_from_whitelist(&non_admin, &asset);
+        assert!(result.is_err() || matches!(result, Ok(Err(Error::Unauthorized))));
+    }
+
+    #[test]
+    fn test_invalid_whitelist_tier_is_rejected() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = Address::generate(&env);
+
+        client.initialize(&admin);
+
+        let result = client.try_set_asset_whitelist_tier(&admin, &asset, &0u32);
+        assert!(result.is_err() || matches!(result, Ok(Err(Error::InvalidKycTier))));
+        assert_eq!(client.get_asset_whitelist_tier(&asset), None);
+    }
+
+    #[test]
+    fn test_contribute_requires_asset_whitelist_tier_for_protected_assets() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+        let identity_contract_id = env.register_contract(None, identity::IdentityContract);
+        let identity_client = IdentityContractClient::new(&env, &identity_contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let contributor = Address::generate(&env);
+
+        client.initialize(&admin);
+        client.set_identity_contract(&admin, identity_contract_id);
+
+        let token_admin = Address::generate(&env);
+        let (token, token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
+        let jurisdictions = soroban_sdk::Vec::from_array(&env, [Jurisdiction::Global]);
+
+        env.ledger().set_timestamp(1000000);
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &(1000000 + MIN_PROJECT_DURATION + 86400),
+            &token,
+            &metadata_hash,
+            &Some(jurisdictions.clone()),
+        );
+
+        client.set_asset_whitelist_tier(&admin, &token, &2u32);
+
+        env.mock_all_auths();
+        identity_client.verify_identity(
+            &contributor,
+            &Jurisdiction::Global,
+            &Bytes::from_slice(&env, b"proof"),
+            &Bytes::from_slice(&env, b"public"),
+            &2u32,
+        );
+
+        env.mock_all_auths();
+        token_admin_client.mint(&contributor, &100_0000000);
+
+        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+        assert_eq!(client.get_user_contribution(&project_id, &contributor), MIN_CONTRIBUTION);
+    }
+
+    #[test]
+    fn test_contribution_fails_when_asset_whitelist_tier_is_not_met() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+        let identity_contract_id = env.register_contract(None, identity::IdentityContract);
+        let identity_client = IdentityContractClient::new(&env, &identity_contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let contributor = Address::generate(&env);
+
+        client.initialize(&admin);
+        client.set_identity_contract(&admin, identity_contract_id);
+
+        let token_admin = Address::generate(&env);
+        let (token, token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
+        let jurisdictions = soroban_sdk::Vec::from_array(&env, [Jurisdiction::Global]);
+
+        env.ledger().set_timestamp(1000000);
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &(1000000 + MIN_PROJECT_DURATION + 86400),
+            &token,
+            &metadata_hash,
+            &Some(jurisdictions.clone()),
+        );
+
+        client.set_asset_whitelist_tier(&admin, &token, &2u32);
+
+        env.mock_all_auths();
+        identity_client.verify_identity(
+            &contributor,
+            &Jurisdiction::Global,
+            &Bytes::from_slice(&env, b"proof"),
+            &Bytes::from_slice(&env, b"public"),
+            &1u32,
+        );
+
+        env.mock_all_auths();
+        token_admin_client.mint(&contributor, &100_0000000);
+
+        let result = client.try_contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+        assert!(result.is_err() || matches!(result, Ok(Err(Error::KycTierInsufficient))));
+        assert_eq!(token_client.balance(&contributor), 100_0000000);
+    }
+
+    #[test]
+    fn test_whitelist_non_protected_asset_does_not_change_existing_contribution_flow() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let contributor = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let (token, token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+
+        client.initialize(&admin);
+
+        env.ledger().set_timestamp(1000000);
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &(1000000 + MIN_PROJECT_DURATION + 86400),
+            &token,
+            &Bytes::from_slice(&env, b"QmHash123"),
+            &None,
+        );
+
+        env.mock_all_auths();
+        token_admin_client.mint(&contributor, &100_0000000);
+        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+
+        assert_eq!(token_client.balance(&contributor), 90_0000000);
+    }
+
+    #[test]
+    fn test_remove_nonexistent_asset_whitelist_entry_returns_not_found() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = Address::generate(&env);
+
+        client.initialize(&admin);
+
+        let result = client.try_remove_asset_from_whitelist(&admin, &asset);
+        assert!(result.is_err() || matches!(result, Ok(Err(Error::NotFound))));
     }
 
     #[test]

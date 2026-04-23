@@ -10,6 +10,11 @@ pub enum Error {
     InvInput = 4,
     NotFound = 5,
 
+    // KYC / Asset Whitelist Errors
+    AssetNotWhitelisted = 51,
+    KycTierInsufficient = 52,
+    InvalidKycTier = 53,
+
     // Project Errors
     ProjNotAct = 6,
     ProjExists = 7,

@@ -11,6 +11,10 @@ pub const RWA_METADATA_UPDATED: Symbol = symbol_short!("rwa_meta");
 pub const CONTRIBUTION_MADE: Symbol = symbol_short!("contrib");
 pub const REFUND_ISSUED: Symbol = symbol_short!("refund");
 
+// Asset whitelist events
+pub const ASSET_WHITELIST_SET: Symbol = symbol_short!("assetwl_set");
+pub const ASSET_WHITELIST_REMOVED: Symbol = symbol_short!("assetwl_rm");
+
 // Escrow events
 pub const ESCROW_INITIALIZED: Symbol = symbol_short!("esc_init");
 pub const FUNDS_LOCKED: Symbol = symbol_short!("lock");
