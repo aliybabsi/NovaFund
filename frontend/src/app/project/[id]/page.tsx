@@ -1,5 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { Clock8, ShieldCheck, Sparkles, Target, Users } from "lucide-react";
 import MilestoneTimeline, {
@@ -13,6 +15,17 @@ import { BackerAvatars } from "@/components/social/BackerAvatars";
 import { CommentSection } from "@/components/social/CommentSection";
 import { AuditBadge } from "@/components/AuditBadge";
 import { ProjectDetail, type RWAProjectProps } from "@/components/ProjectDetail";
+
+// Lazy-load the chart so it never blocks LCP — the funding progress bar above
+// the fold is rendered inline; the chart loads after the critical content.
+const FundingChart = dynamic(() => import("@/components/FundingChart"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[140px] w-[140px] items-center justify-center rounded-full bg-white/5 text-xs text-white/40">
+      Loading…
+    </div>
+  ),
+});
 
 type ContributionState = "idle" | "loading" | "success" | "error";
 
@@ -205,6 +218,20 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   return (
     <div className="min-h-screen max-w-screen overflow-hidden bg-slate-950 text-white">
       <div className="mx-auto max-w-8xl md:px-4 py-10">
+        {/* Hero banner — next/image with priority ensures this is the LCP element
+            and is preloaded immediately, avoiding layout shift and slow LCP. */}
+        <div className="relative mb-8 h-48 w-full overflow-hidden rounded-3xl sm:h-64">
+          <Image
+            src="/project-banner.jpg"
+            alt={`${projectProfile.name} project banner`}
+            fill
+            priority
+            sizes="(max-width: 768px) 100vw, 1400px"
+            className="object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent" />
+        </div>
+
         <div className="mt-4 grid gap-10 lg:grid-cols-[1.65fr_0.9fr]">
           <div className="space-y-10">
             <ProjectDetail project={rwaProjectData} />
@@ -262,9 +289,13 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               </div>
             </div>
 
+            {/* Lazy-loaded chart — does not block LCP */}
+            <div className="flex justify-center py-2">
+              <FundingChart fundingTarget={fundingTarget} fundsCommitted={fundsCommitted} />
+            </div>
+
             <div className="space-y-4">
-              {highlightStats.map((stat) => (
-                <div
+              {highlightStats.map((stat) => (                <div
                   key={stat.label}
                   className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 px-4 py-3"
                 >
