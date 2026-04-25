@@ -14,7 +14,7 @@ use shared::{
     },
     errors::Error,
     events::{
-        ASSET_WHITELIST_REMOVED, ASSET_WHITELIST_SET, CONTRACT_PAUSED, CONTRACT_RESUMED,
+        CONTRACT_PAUSED, CONTRACT_RESUMED,
         CONTRIBUTION_MADE, PROJECT_CREATED, PROJECT_FAILED, REFUND_ISSUED, RWA_METADATA_UPDATED,
         UPGRADE_CANCELLED, UPGRADE_EXECUTED, UPGRADE_SCHEDULED,
     },
@@ -80,8 +80,8 @@ pub enum DataKey {
     AssetWhitelist = 8, // (DataKey::AssetWhitelist, asset) -> KycTier
     PauseState = 9,
     PendingUpgrade = 10,
-    RwaMetadataCid = 10, // (DataKey::RwaMetadataCid, project_id) -> String
-    GovernanceContract = 11, // Address of the Governance DAO contract for upgrade approval
+    RwaMetadataCid = 11, // (DataKey::RwaMetadataCid, project_id) -> String
+    GovernanceContract = 12, // Address of the Governance DAO contract for upgrade approval
 }
 
 #[contract]
@@ -271,6 +271,7 @@ impl ProjectLaunch {
         }
 
         // Verify Identity if required
+        let mut user_tier = 0u32;
         if let Some(jurisdictions) = env
             .storage()
             .instance()
@@ -282,7 +283,6 @@ impl ProjectLaunch {
                 .get::<_, Address>(&DataKey::IdentityContract)
             {
                 let identity_client = IdentityContractClient::new(&env, &identity_contract);
-                let mut user_tier = 0;
                 for jurisdiction in jurisdictions.iter() {
                     let tier = identity_client.get_tier(&contributor, &jurisdiction);
                     if tier > user_tier {
@@ -894,11 +894,11 @@ mod tests {
         client.initialize(&admin);
 
         let result = client.try_set_asset_whitelist_tier(&non_admin, &asset, &1u32);
-        assert!(result.is_err() || matches!(result, Ok(Err(Error::Unauthorized))));
+        assert!(result.is_err());
         assert_eq!(client.get_asset_whitelist_tier(&asset), None);
 
         let result = client.try_remove_asset_from_whitelist(&non_admin, &asset);
-        assert!(result.is_err() || matches!(result, Ok(Err(Error::Unauthorized))));
+        assert!(result.is_err());
     }
 
     #[test]
@@ -914,7 +914,7 @@ mod tests {
         client.initialize(&admin);
 
         let result = client.try_set_asset_whitelist_tier(&admin, &asset, &0u32);
-        assert!(result.is_err() || matches!(result, Ok(Err(Error::InvalidKycTier))));
+        assert!(result.is_err());
         assert_eq!(client.get_asset_whitelist_tier(&asset), None);
     }
 
@@ -933,7 +933,7 @@ mod tests {
         let contributor = Address::generate(&env);
 
         client.initialize(&admin);
-        client.set_identity_contract(&admin, identity_contract_id);
+        client.set_identity_contract(&identity_contract_id);
 
         let token_admin = Address::generate(&env);
         let (token, token_client, token_admin_client) = create_token_contract(&env, &token_admin);
@@ -983,7 +983,7 @@ mod tests {
         let contributor = Address::generate(&env);
 
         client.initialize(&admin);
-        client.set_identity_contract(&admin, identity_contract_id);
+        client.set_identity_contract(&identity_contract_id);
 
         let token_admin = Address::generate(&env);
         let (token, token_client, token_admin_client) = create_token_contract(&env, &token_admin);
@@ -1015,7 +1015,7 @@ mod tests {
         token_admin_client.mint(&contributor, &100_0000000);
 
         let result = client.try_contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
-        assert!(result.is_err() || matches!(result, Ok(Err(Error::KycTierInsufficient))));
+        assert!(result.is_err());
         assert_eq!(token_client.balance(&contributor), 100_0000000);
     }
 
@@ -1065,7 +1065,7 @@ mod tests {
         client.initialize(&admin);
 
         let result = client.try_remove_asset_from_whitelist(&admin, &asset);
-        assert!(result.is_err() || matches!(result, Ok(Err(Error::NotFound))));
+        assert!(result.is_err());
     }
 
     #[test]

@@ -12,8 +12,8 @@ pub const CONTRIBUTION_MADE: Symbol = symbol_short!("contrib");
 pub const REFUND_ISSUED: Symbol = symbol_short!("refund");
 
 // Asset whitelist events
-pub const ASSET_WHITELIST_SET: Symbol = symbol_short!("assetwl_set");
-pub const ASSET_WHITELIST_REMOVED: Symbol = symbol_short!("assetwl_rm");
+pub const ASSET_WHITELIST_SET: Symbol = symbol_short!("aswl_set");
+pub const ASSET_WHITELIST_REMOVED: Symbol = symbol_short!("aswl_rm");
 
 // Escrow events
 pub const ESCROW_INITIALIZED: Symbol = symbol_short!("esc_init");

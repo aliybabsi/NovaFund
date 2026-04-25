@@ -31,10 +31,10 @@ impl AssetWhitelist {
     ///
     /// * `Error::NotInit` if the contract has not been initialized.
     /// * `Error::Unauthorized` if the caller is not the stored admin.
-    /// * `Error::InvalidKycTier` if `required_tier` is zero.
+    /// * `Error::InvInput` if `required_tier` is zero.
     pub fn set(env: Env, admin: Address, asset: Address, required_tier: KycTier) -> Result<(), Error> {
         if required_tier == 0 {
-            return Err(Error::InvalidKycTier);
+            return Err(Error::InvInput);
         }
 
         let stored_admin: Address = env
@@ -109,15 +109,15 @@ impl AssetWhitelist {
     ///
     /// # Errors
     ///
-    /// * `Error::InvalidKycTier` if the stored asset requirement is invalid.
-    /// * `Error::KycTierInsufficient` if the contributor's tier is below the asset requirement.
+    /// * `Error::InvInput` if the stored asset requirement is invalid.
+    /// * `Error::Unauthorized` if the contributor's tier is below the asset requirement.
     pub fn validate_asset_kyc(env: &Env, asset: &Address, user_tier: KycTier) -> Result<(), Error> {
         if let Some(required_tier) = Self::get_required_tier(env, asset) {
             if required_tier == 0 {
-                return Err(Error::InvalidKycTier);
+                return Err(Error::InvInput);
             }
             if user_tier < required_tier {
-                return Err(Error::KycTierInsufficient);
+                return Err(Error::Unauthorized);
             }
         }
         Ok(())
