@@ -5,6 +5,7 @@ import Footer from "../components/layout/Footer";
 import { NotificationProvider } from "../contexts/NotificationContext";
 import { SocialProvider } from "../contexts/SocialContext";
 import { LiveNotificationToast } from "../components/notifications/LiveNotificationToast";
+import { PageTransition } from "../components/layout/PageTransition";
 import "../styles/globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -26,9 +27,9 @@ export default function RootLayout({
           <SocialProvider>
             <Header />
             <LiveNotificationToast />
-            <main className="flex-1 max-w-7xl mx-auto px-4 py-6 pt-16">
+            <PageTransition className="flex-1 max-w-7xl mx-auto px-4 py-6 pt-16">
               {children}
-            </main>
+            </PageTransition>
             <Footer />
           </SocialProvider>
         </NotificationProvider>
