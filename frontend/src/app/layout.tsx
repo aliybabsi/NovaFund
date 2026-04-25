@@ -5,7 +5,7 @@ import Footer from "../components/layout/Footer";
 import { NotificationProvider } from "../contexts/NotificationContext";
 import { SocialProvider } from "../contexts/SocialContext";
 import { LiveNotificationToast } from "../components/notifications/LiveNotificationToast";
-import { QueryProvider } from "../components/providers/QueryProvider";
+import { PageTransition } from "../components/layout/PageTransition";
 import "../styles/globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -25,14 +25,12 @@ export default function RootLayout({
       <body className="bg-black text-white min-h-screen flex flex-col">
         <NotificationProvider>
           <SocialProvider>
-            <QueryProvider>
-              <Header />
-              <LiveNotificationToast />
-              <main className="flex-1 max-w-7xl mx-auto px-4 py-6 pt-16">
-                {children}
-              </main>
-              <Footer />
-            </QueryProvider>
+            <Header />
+            <LiveNotificationToast />
+            <PageTransition className="flex-1 max-w-7xl mx-auto px-4 py-6 pt-16">
+              {children}
+            </PageTransition>
+            <Footer />
           </SocialProvider>
         </NotificationProvider>
       </body>
